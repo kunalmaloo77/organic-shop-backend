@@ -19,7 +19,7 @@ main().catch((error) => {
 
 async function main() {
   try {
-    await mongoose.connect('mongodb://127.0.0.1:27017/usersDB')
+    await mongoose.connect(`mongodb+srv://${process.env.USER}:${process.env.DB_PASSWORD}@organicshopcluster.vcdzuqc.mongodb.net/?retryWrites=true&w=majority&appName=organicShopCluster`)
 
   } catch (error) {
     console.log("async error ->", error);
@@ -35,7 +35,7 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan('dev'));
 
 server.use(cors({
-  origin: 'http://localhost:3000', // Replace with your front-end page URL
+  origin: 'https://orgafic-shop.vercel.app/', // Replace with your front-end page URL
   credentials: true
 }));
 
