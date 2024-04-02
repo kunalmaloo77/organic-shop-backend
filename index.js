@@ -35,7 +35,7 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan('dev'));
 
 server.use(cors({
-  origin: 'https://orgafic-shop.vercel.app/', // Replace with your front-end page URL
+  origin: 'https://organic-shop-frontend.vercel.app', // Replace with your front-end page URL
   credentials: true
 }));
 
