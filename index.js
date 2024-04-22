@@ -44,6 +44,9 @@ server.use(session({
   secret: process.env.SECRET,
   resave: false,
   saveUninitialized: false,
+  cookie: {
+    domain: 'organic-shop-backend.vercel.app',
+  }
 }));
 
 initializePassport();

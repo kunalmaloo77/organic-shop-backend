@@ -6,6 +6,7 @@ export const checkUser = (req, res) => {
 }
 
 export const checkAuthenticated = (req, res) => {
+  console.log("checkAuth");
   res.json({ authenticated: true });
 }
 
