@@ -20,7 +20,6 @@ main().catch((error) => {
 async function main() {
   try {
     await mongoose.connect(`mongodb+srv://${process.env.USER}:${process.env.DB_PASSWORD}@organicshopcluster.vcdzuqc.mongodb.net/?retryWrites=true&w=majority&appName=organicShopCluster`)
-
   } catch (error) {
     console.log("async error ->", error);
   }
@@ -35,7 +34,7 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan('dev'));
 
 server.use(cors({
-  origin: 'https://organic-shop-frontend.vercel.app', // Replace with your front-end page URL
+  origin: '*', // Replace with your front-end page URL
   credentials: true
 }));
 
@@ -45,7 +44,7 @@ server.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    domain: 'organic-shop-backend.vercel.app',
+    httpOnly: false,
   }
 }));
 
