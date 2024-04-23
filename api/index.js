@@ -45,7 +45,6 @@ server.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,
   }
 }));
 
