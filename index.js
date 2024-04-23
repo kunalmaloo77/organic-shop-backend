@@ -1,12 +1,12 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import { userRouter } from '../routes/user.js';
-import { authRouter } from '../routes/auth.js';
+import { userRouter } from './routes/user.js';
+import { authRouter } from './routes/auth.js';
 import dotenv from 'dotenv';
 import passport from 'passport'
 import session from 'express-session';
-import initializePassport from '../passport-config.js';
+import initializePassport from './passport-config.js';
 import morgan from 'morgan';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
