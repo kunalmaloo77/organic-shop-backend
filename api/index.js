@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import { userRouter } from '../routes/user.js';
 import { authRouter } from '../routes/auth.js';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import passport from 'passport'
 import session from 'express-session';
 import initializePassport from '../passport-config.js';
@@ -11,7 +11,9 @@ import morgan from 'morgan';
 import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 
-dotenv.config();
+const baseUrl = process.env.NODE_ENV === 'production'
+  ? process.env.FRONT_END_URL_PRODUCTION
+  : process.env.FRONT_END_URL_DEVELOPMEMT;
 
 main().catch((error) => {
   console.log("promise error ->", error);
@@ -33,8 +35,9 @@ server.use(bodyParser.urlencoded({ extended: true }));
 
 server.use(morgan('dev'));
 
+// console.log("baseurl->", baseUrl);
 server.use(cors({
-  origin: 'https://organic-shop-frontend.vercel.app', // Replace with your front-end page URL
+  origin: baseUrl,
   credentials: true
 }));
 
