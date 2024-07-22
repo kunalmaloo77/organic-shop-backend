@@ -53,6 +53,7 @@ server.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
+    sameSite: 'None'
   }
 }));
 
