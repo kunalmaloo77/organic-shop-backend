@@ -13,7 +13,7 @@ import cookieParser from 'cookie-parser';
 
 const baseUrl = process.env.NODE_ENV === 'production'
   ? process.env.FRONT_END_URL_PRODUCTION
-  : process.env.FRONT_END_URL_DEVELOPMEMT;
+  : process.env.FRONT_END_URL_DEVELOPMENT;
 
 main().catch((error) => {
   console.log("promise error ->", error);
