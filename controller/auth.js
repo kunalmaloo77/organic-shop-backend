@@ -1,13 +1,20 @@
 //{ loginEmail: 'w@w', loginPassword: '1213131' }
 
 export const checkUser = (req, res) => {
-  console.log('serialized user ->', req.session);
-  res.status(200).json({ message: "Logged in successfully" });
+  if (req.user) {
+    console.log('Logged in user ->', req.user);
+    res.status(200).json({
+      message: "Logged in successfully",
+      user: req.user
+    });
+  } else {
+    res.status(401).json({ error: "User not authenticated" });
+  }
 }
 
 export const checkAuthenticated = (req, res) => {
-  console.log("checkAuth");
-  res.json({ authenticated: true });
+  console.log("checkAuth->", req.user);
+  res.json({ authenticated: true, user: req.user.name });
 }
 
 export const logoutUser = (req, res) => {

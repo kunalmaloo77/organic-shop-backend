@@ -14,9 +14,11 @@ const authenticateCallback = (req, res, next) => {
     }
     // If authentication is successful, proceed to the next middleware/controller
     req.logIn(user, (err) => {
+      console.log("user->", user);
       if (err) {
         return res.status(500).json({ error: err.message });
       }
+      req.user = user;
       console.log("login successful.");
       return next();
     });
