@@ -48,7 +48,7 @@ server.options('*', cors(corsOptions));
 
 console.log("environment->", process.env.NODE_ENV);
 
-server.use('trust proxy', 1);
+server.set('trust proxy', 1);
 
 server.use(cookieParser());
 server.use(session({
