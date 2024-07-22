@@ -46,6 +46,8 @@ server.use(cors(corsOptions));
 // Ensure preflight requests are handled
 server.options('*', cors(corsOptions));
 
+console.log("environment->", process.env.NODE_ENV);
+
 server.use(cookieParser());
 server.use(session({
   secret: process.env.SECRET,
@@ -53,6 +55,8 @@ server.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
+    secure: process.env.NODE_ENV === 'production'
   }
 }));
 
