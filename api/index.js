@@ -53,7 +53,7 @@ server.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    sameSite: 'None',
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
     secure: process.env.NODE_ENV === 'production'
   }
 }));
