@@ -41,6 +41,8 @@ server.use(cors({
   credentials: true
 }));
 
+server.options('*', cors())
+
 server.use(cookieParser());
 server.use(session({
   secret: process.env.SECRET,
