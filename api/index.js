@@ -36,12 +36,15 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan('dev'));
 
 // console.log("baseurl->", baseUrl);
-server.use(cors({
+const corsOptions = {
   origin: baseUrl,
   credentials: true
-}));
+};
 
-server.options('*', cors())
+server.use(cors(corsOptions));
+
+// Ensure preflight requests are handled
+server.options('*', cors(corsOptions));
 
 server.use(cookieParser());
 server.use(session({
