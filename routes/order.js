@@ -6,7 +6,9 @@ const orderRouter = express.Router();
 
 orderRouter
   .get("/", checkAuthenticated, orderController.getOrdersByUser)
+  .get("/:id", checkAuthenticated, orderController.getOrder)
   .post("/", checkAuthenticated, orderController.createOrder)
-  .post("/verify-payment", checkAuthenticated, orderController.verifyOrder);
+  .post("/verify-order", checkAuthenticated, orderController.verifyOrder)
+  .patch("/:id/cancel", checkAuthenticated, orderController.cancelOrder);
 
 export { orderRouter };

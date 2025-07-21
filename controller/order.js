@@ -1,24 +1,29 @@
-import { instance } from "../api/index.js";
+import { instance } from "../api/app.js";
 import { OrderModel } from "../model/order.js";
-import Razorpay from "razorpay";
 import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.js";
 
 //create order
 export const createOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { amount, currency, items } = req.body;
-    const options = {
-      amount: amount * 100,
-      currency: currency,
-    };
-    const razorpayOrder = await instance.orders.create(options);
+    const { amount, currency, items, paymentMethod, billingDetails } = req.body;
+    let razorpayOrderId;
+    if (paymentMethod === "online") {
+      const options = {
+        amount: amount * 100,
+        currency: currency,
+      };
+      const razorpayOrder = await instance.orders.create(options);
+      razorpayOrderId = razorpayOrder.id;
+    }
     const dbOrder = await OrderModel.create({
       userId,
-      razorpayOrderId: razorpayOrder.id,
-      amount,
+      razorpayOrderId,
+      amount: amount * 100,
       items,
-      status: razorpayOrder.status,
+      billingDetails,
+      status: paymentMethod === "cash" ? "pending" : "created",
+      paymentMethod,
     });
     res
       .status(201)
@@ -34,12 +39,39 @@ export const getOrdersByUser = async (req, res) => {
   try {
     const userId = req.user._id;
     const orders = await OrderModel.find({ userId })
-      .populate("items.productId")
+      .populate("items.product")
       .sort({ createdAt: -1 });
-    res.json(orders);
+
+    // Convert amount from paise to rupees for each order
+    const ordersWithConvertedAmount = orders.map((order) => {
+      const orderObj = order.toObject();
+      orderObj.amount = orderObj.amount / 100;
+      return orderObj;
+    });
+    res.json(ordersWithConvertedAmount);
   } catch (error) {
     console.error("Error fetching orders:", error);
     res.status(500).json({ error: "Failed to fetch orders" });
+  }
+};
+
+// Fetch order by id
+export const getOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const orderId = req.params.id;
+    const order = await OrderModel.findOne({ _id: orderId, userId }).populate(
+      "items.product"
+    );
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    const orderObj = order.toObject();
+    orderObj.amount = orderObj.amount / 100;
+    res.json(orderObj);
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    res.status(500).json({ error: "Failed to fetch order" });
   }
 };
 
@@ -77,5 +109,24 @@ export const verifyOrder = async (req, res) => {
   } catch (error) {
     console.error("Error Verifying Payment", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const cancelOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const orderId = req.params.id;
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      { _id: orderId, userId },
+      { status: "cancelled" },
+      { new: true }
+    );
+    if (!updatedOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.json({ message: "Order cancelled successfully", order: updatedOrder });
+  } catch (error) {
+    console.error("Error cancelling order:", error);
+    res.status(500).json({ error: "Failed to cancel order" });
   }
 };
