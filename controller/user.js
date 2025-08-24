@@ -1,4 +1,5 @@
 import { userModel } from "../model/user.js";
+import jwt from "jsonwebtoken";
 
 //Read all /users
 export const getAllUsers = async (req, res) => {
@@ -20,29 +21,45 @@ export const getUser = async (req, res) => {
 //Create POST /users
 export const createUser = async (req, res) => {
   try {
+    const email = req.body.email && String(req.body.email).toLowerCase().trim();
+    const password = req.body.password && String(req.body.password).trim();
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    const existing = await userModel.findOne({ email });
+    if (existing) {
+      return res.status(409).json({ error: "User Already Exists" });
+    }
+
     const userDoc = new userModel({
       name: req.body.name,
-      email: req.body.email,
-      password: req.body.password,
+      email,
+      password,
     });
     const doc = await userDoc.save();
 
-    req.logIn(doc, (err) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.status(201).json(doc);
+    const accessToken = jwt.sign({ id: doc._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
     });
+
+    res.cookie("token", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    const userResponse = doc.toObject();
+    delete userResponse.password;
+
+    res.status(201).json({ user: userResponse, msg: "User created" });
   } catch (error) {
-    if (error.code === 11000) {
-      console.error("Duplicate key error->", error);
-      res
-        .status(409)
-        .json({ error: "User Already Exists", message: error.message });
-    } else {
-      console.error(error);
-      res.status(400).json(error);
+    console.error(error);
+    if (error && error.code === 11000) {
+      return res.status(409).json({ error: "User already exists" });
     }
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 

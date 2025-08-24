@@ -1,14 +1,14 @@
 import express from "express";
 import * as orderController from "../controller/order.js";
-import { checkAuthenticated } from "../middleware/auth.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const orderRouter = express.Router();
 
 orderRouter
-  .get("/", checkAuthenticated, orderController.getOrdersByUser)
-  .get("/:id", checkAuthenticated, orderController.getOrder)
-  .post("/", checkAuthenticated, orderController.createOrder)
-  .post("/verify-order", checkAuthenticated, orderController.verifyOrder)
-  .patch("/:id/cancel", checkAuthenticated, orderController.cancelOrder);
+  .get("/", authMiddleware, orderController.getOrdersByUser)
+  .get("/:id", authMiddleware, orderController.getOrder)
+  .post("/", authMiddleware, orderController.createOrder)
+  .post("/verify-order", authMiddleware, orderController.verifyOrder)
+  .patch("/:id/cancel", authMiddleware, orderController.cancelOrder);
 
 export { orderRouter };

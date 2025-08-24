@@ -5,7 +5,7 @@ import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.
 //create order
 export const createOrder = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { amount, currency, items, paymentMethod, billingDetails } = req.body;
     let razorpayOrderId;
     if (paymentMethod === "online") {
@@ -37,7 +37,7 @@ export const createOrder = async (req, res) => {
 // Fetch all orders of a specific user
 export const getOrdersByUser = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const orders = await OrderModel.find({ userId })
       .populate("items.product")
       .sort({ createdAt: -1 });
@@ -48,7 +48,7 @@ export const getOrdersByUser = async (req, res) => {
       orderObj.amount = orderObj.amount / 100;
       return orderObj;
     });
-    res.json(ordersWithConvertedAmount);
+    res.status(200).json(ordersWithConvertedAmount);
   } catch (error) {
     console.error("Error fetching orders:", error);
     res.status(500).json({ error: "Failed to fetch orders" });
@@ -58,7 +58,7 @@ export const getOrdersByUser = async (req, res) => {
 // Fetch order by id
 export const getOrder = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const orderId = req.params.id;
     const order = await OrderModel.findOne({ _id: orderId, userId }).populate(
       "items.product"
@@ -68,7 +68,7 @@ export const getOrder = async (req, res) => {
     }
     const orderObj = order.toObject();
     orderObj.amount = orderObj.amount / 100;
-    res.json(orderObj);
+    res.status(200).json(orderObj);
   } catch (error) {
     console.error("Error fetching order:", error);
     res.status(500).json({ error: "Failed to fetch order" });
