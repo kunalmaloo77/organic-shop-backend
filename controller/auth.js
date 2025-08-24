@@ -12,11 +12,11 @@ export const loginUser = async (req, res) => {
     const accessToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
-    if (match) {  
+    if (match) {
       res.cookie("token", accessToken, {
         httpOnly: true, // JS can't read it (prevents XSS)
         secure: true, // only HTTPS
-        sameSite: "strict", // CSRF protection
+        sameSite: "none", // No CSRF protection
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
       res.json({ message: "Login successful" });
