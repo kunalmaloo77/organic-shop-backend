@@ -11,5 +11,10 @@ authRouter.get(
   authController.checkAuthenticated
 );
 authRouter.post("/logout", authMiddleware, authController.logoutUser);
+authRouter.patch(
+  "/resetPassword",
+  authMiddleware,
+  authController.resetPassword
+);
 
 export { authRouter };

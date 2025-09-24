@@ -5,9 +5,6 @@ import { userRouter } from "../routes/user.js";
 import { authRouter } from "../routes/auth.js";
 import { orderRouter } from "../routes/order.js";
 import "dotenv/config";
-import passport from "passport";
-import session from "express-session";
-import initializePassport from "../passport-config.js";
 import morgan from "morgan";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
@@ -59,22 +56,6 @@ server.options("*", cors(corsOptions));
 server.set("trust proxy", 1);
 
 server.use(cookieParser());
-server.use(
-  session({
-    secret: process.env.SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      secure: process.env.NODE_ENV === "production",
-    },
-  })
-);
-
-initializePassport();
-
-server.use(passport.authenticate("session"));
 
 server.use("/users", userRouter);
 

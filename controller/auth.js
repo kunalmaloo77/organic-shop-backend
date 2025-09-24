@@ -2,6 +2,7 @@
 import { userModel } from "../model/user.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { hashedPassword } from "../utils/hashedPassword.js";
 
 export const loginUser = async (req, res) => {
   try {
@@ -21,7 +22,7 @@ export const loginUser = async (req, res) => {
       });
       res.json({ message: "Login successful" });
     } else {
-      res.status(401).json({ message: "Unauthorized" });
+      res.status(401).json({ message: "Incorrect Password" });
     }
   } catch (error) {
     console.error("Login error->", error);
@@ -31,17 +32,25 @@ export const loginUser = async (req, res) => {
 };
 
 export const checkAuthenticated = async (req, res) => {
-  if (req.user) {
-    const user = await userModel.findById(req.user.id).select("-password");
-    return res.status(200).json({
-      success: true,
-      user,
+  try {
+    if (req.user) {
+      const user = await userModel.findById(req.user.id).select("-password");
+      return res.status(200).json({
+        success: true,
+        user,
+      });
+    }
+    res.status(401).json({
+      success: false,
+      message: "User not authenticated",
+    });
+  } catch (error) {
+    console.error("Authentication check error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Server error",
     });
   }
-  res.status(401).json({
-    success: false,
-    message: "User not authenticated",
-  });
 };
 
 export const logoutUser = (req, res) => {
@@ -62,5 +71,19 @@ export const logoutUser = (req, res) => {
       success: false,
       error: "Logout failed",
     });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    if (req.user) {
+      const { newPassword } = req.body;
+      const userId = req.user.id;
+      await userModel.findByIdAndUpdate(userId, { password: newPassword });
+      res.status(200).json({ message: "Password reset successful" });
+    }
+  } catch (error) {
+    console.error("Password reset error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };

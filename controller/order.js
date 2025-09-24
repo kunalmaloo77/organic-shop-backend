@@ -1,6 +1,7 @@
 import { instance } from "../api/app.js";
 import { OrderModel } from "../model/order.js";
 import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.js";
+import mongoose from "mongoose";
 
 //create order
 export const createOrder = async (req, res) => {
@@ -114,8 +115,9 @@ export const verifyOrder = async (req, res) => {
 
 export const cancelOrder = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const orderId = req.params.id;
+    const userId = req.user.id;
+    const orderId = req.body.id;
+
     const updatedOrder = await OrderModel.findOneAndUpdate(
       { _id: orderId, userId },
       { status: "cancelled" },
