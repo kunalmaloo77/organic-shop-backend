@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { hashedPassword } from "../utils/hashedPassword.js";
+import { hashedPassword } from "../utils/util.js";
 const { Schema } = mongoose;
 
 const userSchema = new Schema(

@@ -1,7 +1,8 @@
 import { userModel } from "../model/user.js";
 import jwt from "jsonwebtoken";
+import { generateRefreshToken } from "../utils/util.js";
 
-//Read all /users
+//GET: /users
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userModel.find();
@@ -11,16 +12,17 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-//Read single GET /user/:id
+//GET: /user/:id
 export const getUser = async (req, res) => {
   const id = req.params.id;
   const user = await userModel.findOne({ id: id });
   res.json(user);
 };
 
-//Create POST /users
+//POST: /users
 export const createUser = async (req, res) => {
   try {
+    const name = req.body.name && String(req.body.name).trim();
     const email = req.body.email && String(req.body.email).toLowerCase().trim();
     const password = req.body.password && String(req.body.password).trim();
     if (!email || !password) {
@@ -33,27 +35,33 @@ export const createUser = async (req, res) => {
     }
 
     const userDoc = new userModel({
-      name: req.body.name,
+      name,
       email,
       password,
     });
     const doc = await userDoc.save();
 
-    const accessToken = jwt.sign({ id: doc._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    res.cookie("token", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const accessToken = jwt.sign(
+      { id: doc._id },
+      process.env.JWT_ACCESS_SECRET,
+      {
+        expiresIn: process.env.JWT_ACCESS_EXPIRY,
+      }
+    );
+    const refreshToken = await generateRefreshToken(doc._id);
 
     const userResponse = doc.toObject();
     delete userResponse.password;
+    userResponse.accessToken = accessToken;
 
-    res.status(201).json({ user: userResponse, msg: "User created" });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.status(201).json({ user: userResponse });
   } catch (error) {
     console.error(error);
     if (error && error.code === 11000) {
@@ -63,21 +71,7 @@ export const createUser = async (req, res) => {
   }
 };
 
-// Update PUT /users/:id
-export const replaceUser = async (req, res) => {
-  const id = req.params.id;
-  try {
-    const doc = await userModel.findOneAndReplace({ id: id }, req.body, {
-      new: true,
-    });
-    res.status(201).json(doc);
-  } catch (err) {
-    console.error(err);
-    res.status(400).json(err);
-  }
-};
-
-//Update PATCH /user/:id
+//PATCH /user/:id
 export const updateUser = async (req, res) => {
   const id = req.params.id;
   try {
@@ -91,7 +85,7 @@ export const updateUser = async (req, res) => {
   }
 };
 
-//Delete DELETE /user/:id
+//DELETE /user/:id
 export const deleteUser = async (req, res) => {
   try {
     const doc = await userModel.findOneAndDelete({ id: id });

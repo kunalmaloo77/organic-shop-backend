@@ -10,6 +10,7 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import Razorpay from "razorpay";
 import { productRouter } from "../routes/product.js";
+import client from "../redis_connect.js";
 
 const baseUrl =
   process.env.NODE_ENV === "production"
@@ -28,8 +29,11 @@ main().catch((error) => {
 async function main() {
   try {
     await mongoose.connect(
-      `mongodb+srv://${process.env.USER}:${process.env.DB_PASSWORD}@organicshopcluster.vcdzuqc.mongodb.net/?retryWrites=true&w=majority&appName=organicShopCluster`
+      process.env.NODE_ENV === "production"
+        ? process.env.MONGO_URI_PRODUCTION
+        : process.env.MONGO_URI_DEVELOPMENT
     );
+    console.log("Database connected successfully");
   } catch (error) {
     console.error("async error ->", error);
   }
@@ -68,3 +72,20 @@ server.use("/products", productRouter);
 server.listen(8080, () => {
   console.log("server started on port 8080");
 });
+
+async function shutdown(signal) {
+  console.log(`Received ${signal}, closing server...`);
+  try {
+    httpServer.close(() => console.log("HTTP server closed"));
+    await client.quit().catch((e) => console.error("Redis quit error:", e));
+    await mongoose.disconnect();
+    console.log("Disconnected from Redis and MongoDB, exiting.");
+    process.exit(0);
+  } catch (err) {
+    console.error("Shutdown error:", err);
+    process.exit(1);
+  }
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
