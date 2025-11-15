@@ -31,7 +31,7 @@ main().catch((error) => {
 async function main() {
   try {
     await mongoose.connect(
-      `mongodb+srv://${process.env.USER}:${process.env.DB_PASSWORD}@organicshopcluster.vcdzuqc.mongodb.net/?retryWrites=true&w=majority&appName=organicShopCluster`
+      process.env.NODE_ENV === 'development' ? process.env.MONGO_URI_DEVELOPMENT : process.env.MONGO_URI_PRODUCTION
     );
   } catch (error) {
     console.error("async error ->", error);

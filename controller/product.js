@@ -1,11 +1,77 @@
 import { productModel } from "../model/product.js";
-import { uploadImageToS3 } from "../utils/s3Service.js";
+import { getS3ImageUrl } from "../utils/s3Service.js";
+import mongoose from "mongoose";
+
+const resolveAndCacheSignedUrl = async (
+  doc,
+  pathField,
+  urlField,
+  expiryField,
+  expiresInSeconds = 15 * 60
+) => {
+  const productObj = doc.toObject ? doc.toObject() : doc;
+
+  // If there's no image path, return null url
+  if (!productObj[pathField]) {
+    return { ...productObj, [urlField]: null };
+  }
+
+  // If cached url exists and hasn't expired, reuse it
+  if (productObj[urlField] && productObj[expiryField]) {
+    const expiresAt = new Date(productObj[expiryField]);
+    const now = new Date();
+    if (expiresAt > now) {
+      return { ...productObj, [urlField]: productObj[urlField] };
+    }
+  }
+
+  // Generate new signed URL and persist best-effort
+  try {
+    const imageUrl = await getS3ImageUrl(
+      productObj[pathField],
+      expiresInSeconds
+    );
+
+    // Best-effort update of cached URL and expiry
+    try {
+      await productModel
+        .findByIdAndUpdate(productObj._id, {
+          [urlField]: imageUrl,
+          [expiryField]: new Date(Date.now() + expiresInSeconds * 1000),
+        })
+        .exec();
+    } catch (updateErr) {
+      console.error(
+        `Failed to update cached URL for product ${productObj._id}:`,
+        updateErr
+      );
+    }
+    return { ...productObj, [urlField]: imageUrl };
+  } catch (error) {
+    console.error(
+      `Failed to get s3 url for product ${productObj._id}: `,
+      error
+    );
+    return { ...productObj, [urlField]: null };
+  }
+};
 
 //Read all /products
 export const getAllproducts = async (req, res) => {
   try {
     const products = await productModel.find();
-    res.json(products);
+    const productsWithUrls = await Promise.all(
+      products.map(async (p) => {
+        // Use shared helper to resolve and cache signed URL for small image
+        return await resolveAndCacheSignedUrl(
+          p,
+          "small_image_path",
+          "small_image_url",
+          "small_image_url_expires_at"
+        );
+      })
+    );
+    res.json(productsWithUrls);
   } catch (error) {
     console.error(error);
   }
@@ -15,50 +81,20 @@ export const getAllproducts = async (req, res) => {
 export const getproduct = async (req, res) => {
   try {
     const id = req.params.id;
-    const product = await productModel.findOne({ key: id });
-    res.status(200).json(product);
+    const product = await productModel.findById(id);
+    if (!product) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    const productWithUrls = await resolveAndCacheSignedUrl(
+      product,
+      "image_path",
+      "image_url",
+      "image_url_expires_at",
+      5 * 60 // 5 minutes expiry for main image
+    );
+    res.status(200).json(productWithUrls);
   } catch (error) {
     console.error(error);
-  }
-};
-
-//Create POST /products
-export const createproduct = async (req, res) => {
-  try {
-    const files = req.files;
-    const imageUrl = await uploadImageToS3(
-      files[0],
-      `/products/${files[0].originalname}`
-    );
-    const smallImageUrl = await uploadImageToS3(
-      files[1],
-      `/products+300+x+300/${files[1].originalname}`
-    );
-
-    const productDoc = new productModel({
-      name: req.body.name,
-      title: req.body.title,
-      price: req.body.price,
-      description: req.body.description,
-      sale: req.body.sale,
-      sale_price: req.body.sale_price,
-      image_url: imageUrl,
-      small_image_url: smallImageUrl,
-    });
-    const doc = await productDoc.save();
-    res
-      .status(201)
-      .json({ message: "Product created successfully", product: doc });
-  } catch (error) {
-    if (error.code === 11000) {
-      console.error("Duplicate key error->", error);
-      res
-        .status(409)
-        .json({ error: "product Already Exists", message: error.message });
-    } else {
-      console.error(error);
-      res.status(400).json(error);
-    }
   }
 };
 
@@ -71,9 +107,7 @@ export const getRelatedProducts = async (req, res) => {
       {
         $match: {
           title: title,
-          key: { $ne: key },
-          // TODO: in future use id not key
-          // _id: { $ne: mongoose.Types.ObjectId(currentItemId) },
+          _id: { $ne: new mongoose.Types.ObjectId(String(key)) },
         },
       },
       { $sample: { size: 3 } },
