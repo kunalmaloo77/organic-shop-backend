@@ -60,14 +60,19 @@ server.use("/orders", orderRouter);
 
 server.use("/products", productRouter);
 
-server.listen(8080, () => {
-  console.log("server started on port 8080");
+const httpServer = server.listen(process.env.PORT, () => {
+  console.log(`server started on port ${process.env.PORT}`);
 });
 
 async function shutdown(signal) {
   console.log(`Received ${signal}, closing server...`);
   try {
-    server.close(() => console.log("HTTP server closed"));
+    if (httpServer && typeof httpServer.close === "function") {
+      await new Promise((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      }); 
+      console.log("HTTP server closed");
+    }
     await client.quit().catch((e) => console.error("Redis quit error:", e));
     await mongoose.disconnect();
     console.log("Disconnected from Redis and MongoDB, exiting.");

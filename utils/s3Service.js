@@ -17,7 +17,7 @@ const s3Client = new S3Client({
 
 export const getSmallImageUploadUrl = async (filename, ContentType) => {
   const command = new PutObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: `public/products/small_size/${filename}`,
     ContentType: ContentType,
   });
@@ -28,7 +28,7 @@ export const getSmallImageUploadUrl = async (filename, ContentType) => {
 
 export const getLargeImageUploadUrl = async (filename, ContentType) => {
   const command = new PutObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: `public/products/large_size/${filename}`,
     ContentType: ContentType,
   });
@@ -39,7 +39,7 @@ export const getLargeImageUploadUrl = async (filename, ContentType) => {
 
 export const getS3ImageUrl = async (key, expiresIn = 900) => {
   const command = new GetObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: key,
   });
 
