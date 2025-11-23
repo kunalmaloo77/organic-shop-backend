@@ -8,9 +8,9 @@ export const hashedPassword = async (plainPassword) => {
   return hashed;
 };
 
-export const generateRefreshToken = async (userId) => {
+export const generateRefreshToken = async (userId, role) => {
   const refreshToken = jwt.sign(
-    { id: userId },
+    { id: userId, role: role },
     process.env.JWT_REFRESH_SECRET,
     {
       expiresIn: process.env.JWT_REFRESH_EXPIRY,

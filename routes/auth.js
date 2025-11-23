@@ -5,6 +5,12 @@ import { authMiddleware, refreshTokenMiddleware } from "../middleware/auth.js";
 const authRouter = express.Router();
 
 authRouter.post("/login", authController.loginUser);
+authRouter.get("/login/federated/google", authController.googleLogin);
+authRouter.get(
+  "/login/federated/google/callback",
+  authController.googleLoginCallback
+);
+authRouter.post("/signup", authController.signupUser);
 authRouter.get(
   "/getCurrentUser",
   authMiddleware,
@@ -12,7 +18,7 @@ authRouter.get(
 );
 authRouter.post("/logout", authMiddleware, authController.logoutUser);
 authRouter.patch(
-  "/resetPassword",
+  "/reset-password",
   authMiddleware,
   authController.resetPassword
 );
@@ -21,5 +27,6 @@ authRouter.post(
   refreshTokenMiddleware,
   authController.refreshToken
 );
+authRouter.post("/forgot-password", authController.forgotPassword);
 
 export { authRouter };

@@ -1,7 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import { userRouter } from "../routes/user.js";
+import { adminRouter } from "../routes/admin.js";
 import { authRouter } from "../routes/auth.js";
 import { orderRouter } from "../routes/order.js";
 import "dotenv/config";
@@ -11,11 +11,6 @@ import cookieParser from "cookie-parser";
 import Razorpay from "razorpay";
 import { productRouter } from "../routes/product.js";
 import client from "../redis_connect.js";
-
-const baseUrl =
-  process.env.NODE_ENV === "production"
-    ? process.env.FRONT_END_URL_PRODUCTION
-    : process.env.FRONT_END_URL_DEVELOPMENT;
 
 export const instance = new Razorpay({
   key_id: process.env.RAZOR_PAY_API_KEY,
@@ -28,11 +23,7 @@ main().catch((error) => {
 
 async function main() {
   try {
-    await mongoose.connect(
-      process.env.NODE_ENV === "production"
-        ? process.env.MONGO_URI_PRODUCTION
-        : process.env.MONGO_URI_DEVELOPMENT
-    );
+    await mongoose.connect(process.env.MONGO_URI);
     console.log("Database connected successfully");
   } catch (error) {
     console.error("async error ->", error);
@@ -48,7 +39,7 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan("dev"));
 
 const corsOptions = {
-  origin: baseUrl,
+  origin: process.env.FRONTEND_ENDPOINT,
   credentials: true,
 };
 
@@ -61,7 +52,7 @@ server.set("trust proxy", 1);
 
 server.use(cookieParser());
 
-server.use("/users", userRouter);
+server.use("/admin", adminRouter);
 
 server.use("/auth", authRouter);
 
@@ -76,7 +67,7 @@ server.listen(8080, () => {
 async function shutdown(signal) {
   console.log(`Received ${signal}, closing server...`);
   try {
-    httpServer.close(() => console.log("HTTP server closed"));
+    server.close(() => console.log("HTTP server closed"));
     await client.quit().catch((e) => console.error("Redis quit error:", e));
     await mongoose.disconnect();
     console.log("Disconnected from Redis and MongoDB, exiting.");
