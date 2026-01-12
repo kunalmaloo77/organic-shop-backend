@@ -177,9 +177,21 @@ export const getRelatedProducts = async (req, res) => {
       },
       { $sample: { size: 3 } },
     ]);
+
+    const randomProductsWithUrl = await Promise.all(
+      randomProducts.map(async (p) => {
+        return await resolveAndCacheSignedUrl(
+          p,
+          "small_image_path",
+          "small_image_url",
+          "small_image_url_expires_at"
+        );
+      })
+    );
+
     res.status(200).json(
       successResponse("Related products fetched successfully", {
-        products: randomProducts,
+        products: randomProductsWithUrl,
       })
     );
   } catch (error) {

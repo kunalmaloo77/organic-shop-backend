@@ -52,6 +52,11 @@ server.set("trust proxy", 1);
 
 server.use(cookieParser());
 
+// Health check endpoint for Docker
+server.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 server.use("/admin", adminRouter);
 
 server.use("/auth", authRouter);
@@ -70,7 +75,7 @@ async function shutdown(signal) {
     if (httpServer && typeof httpServer.close === "function") {
       await new Promise((resolve, reject) => {
         httpServer.close((err) => (err ? reject(err) : resolve()));
-      }); 
+      });
       console.log("HTTP server closed");
     }
     await client.quit().catch((e) => console.error("Redis quit error:", e));
