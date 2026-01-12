@@ -9,6 +9,7 @@ orderRouter
   .get("/:id", authMiddleware, orderController.getOrder)
   .post("/", authMiddleware, orderController.createOrder)
   .post("/verify-order", authMiddleware, orderController.verifyOrder)
-  .patch("/cancel", authMiddleware, orderController.cancelOrder);
+  .patch("/cancel", authMiddleware, orderController.cancelOrder)
+  .post("/webhook", orderController.razorpayWebhook);
 
 export { orderRouter };

@@ -1,4 +1,7 @@
-import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.js";
+import {
+  validatePaymentVerification,
+  validateWebhookSignature,
+} from "razorpay/dist/utils/razorpay-utils.js";
 import { instance } from "../api/app.js";
 import { OrderModel } from "../model/order.js";
 import { productModel } from "../model/product.js";
@@ -151,28 +154,7 @@ export const verifyOrder = async (req, res) => {
           errorResponse("Invalid signature", [{ code: "INVALID_SIGNATURE" }])
         );
     }
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { razorpayOrderId: razorpay_order_id },
-      {
-        razorpayPaymentId: razorpay_payment_id,
-        status: "paid",
-      },
-      { new: true }
-    );
-    if (!updatedOrder) {
-      return res.status(404).json(
-        errorResponse("Order not found", [
-          {
-            code: "ORDER_NOT_FOUND",
-            field: "razorpayOrderId",
-            detail: `No order for razorpayOrderId ${razorpay_order_id}`,
-          },
-        ])
-      );
-    }
-    return res
-      .status(200)
-      .json(successResponse("Payment verified", { order: updatedOrder }));
+    return res.status(200).json(successResponse("Client Payment Verified"));
   } catch (error) {
     console.error("Error Verifying Payment", error);
     res
@@ -216,6 +198,47 @@ export const cancelOrder = async (req, res) => {
       .json(
         errorResponse("Failed to cancel order", [
           { code: "CANCEL_ORDER_FAILED", detail: error.message },
+        ])
+      );
+  }
+};
+
+// POST: /webhook
+// Webhook for verifying orders
+export const razorpayWebhook = async (req, res) => {
+  try {
+    const webhook_secret = process.env.RAZOR_PAY_WEBHOOK_SECRET;
+    const webhook_signature = req.headers["x-razorpay-signature"];
+    const webhook_body = req.body;
+
+    const is_valid = validateWebhookSignature(
+      JSON.stringify(webhook_body),
+      webhook_signature,
+      webhook_secret
+    );
+
+    if (!is_valid) {
+      return res.status(400).json({ error: "Invalid webhook signature" });
+    }
+
+    const { payload } = webhook_body;
+    const { payment } = payload;
+
+    await OrderModel.findOneAndUpdate(
+      { razorpayOrderId: payment.entity.order_id },
+      {
+        razorpayPaymentId: payment.id,
+        status: payment.entity.status === "captured" ? "paid" : "failed",
+      }
+    );
+
+    res.status(200);
+  } catch (error) {
+    res
+      .status(500)
+      .json(
+        errorResponse("Failed to verify order", [
+          { code: "ORDER_VERIFICATION_FAILED", detail: error.message },
         ])
       );
   }
