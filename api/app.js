@@ -18,7 +18,7 @@ export const instance = new Razorpay({
 });
 
 main().catch((error) => {
-  console.error("promise error ->", error);
+  console.error("Promise error ->", error);
 });
 
 async function main() {
@@ -26,7 +26,7 @@ async function main() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("Database connected successfully");
   } catch (error) {
-    console.error("async error ->", error);
+    console.error("Database connection error ->", error);
   }
 }
 

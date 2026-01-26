@@ -204,31 +204,6 @@ export const loginUser = async (req, res) => {
   }
 };
 
-export const getCurrentUser = async (req, res) => {
-  try {
-    if (req.user) {
-      const user = await userModel.findById(req.user.id).select("-password");
-      return res
-        .status(200)
-        .json(successResponse("Current user fetched successfully", { user }));
-    }
-    res
-      .status(401)
-      .json(
-        errorResponse("User not authenticated", [{ code: "UNAUTHENTICATED" }])
-      );
-  } catch (error) {
-    console.error("Authentication check error:", error);
-    res
-      .status(500)
-      .json(
-        errorResponse("Server error", [
-          { code: "INTERNAL_ERROR", detail: error.message },
-        ])
-      );
-  }
-};
-
 export const logoutUser = async (req, res) => {
   try {
     const cookies = req.cookies;
@@ -389,7 +364,7 @@ export const googleLogin = async (req, res) => {
     const code_challenge = await oidc.calculatePKCECodeChallenge(code_verifier);
 
     const parameters = {
-      redirect_uri: `${process.env.BASE_URL}/auth/login/federated/google/callback`,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI,
       scope: "openid email profile",
       code_challenge,
       code_challenge_method: "S256",

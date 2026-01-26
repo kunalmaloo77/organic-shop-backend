@@ -1,0 +1,25 @@
+# Development Docker Compose Override
+# This file extends docker-compose.yml for development
+
+services:
+  backend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Enable hot-reload in development
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run start
+    ports:
+      - "9229:9229" # Node.js debugger port
+
+  mongodb:
+    command: mongod --noauth
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+
+  redis:
+    command: redis-server --appendonly yes
