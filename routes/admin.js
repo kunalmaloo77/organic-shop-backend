@@ -1,11 +1,12 @@
 import express from "express";
 import * as adminController from "../controller/admin.js";
 import { authMiddleware, verifyAdminAccess } from "../middleware/auth.js";
+import { authRateLimiter } from "../middleware/rateLimiter.js";
 
 const adminRouter = express.Router();
 
 adminRouter
-  .post("/login", adminController.loginAdmin)
+  .post("/login", authRateLimiter, adminController.loginAdmin)
   .post(
     "/create-product",
     authMiddleware,
