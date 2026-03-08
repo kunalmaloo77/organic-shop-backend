@@ -7,8 +7,16 @@ const orderSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   status: {
     type: String,
-    enum: ["created", "paid", "failed", "pending", "delivered", "cancelled"],
-    default: "created",
+    enum: [
+      "CREATED",
+      "PAYMENT_PENDING",
+      "PAYMENT_SUCCESS",
+      "PAYMENT_FAILED",
+      "DELIVERED",
+      "CANCELLED",
+      "REFUNDED",
+    ],
+    default: "CREATED",
   },
   items: [
     {

@@ -1,5 +1,6 @@
 import express from "express";
 import * as adminController from "../controller/admin.js";
+import { getAllproducts } from "../controller/product.js";
 import { authMiddleware, verifyAdminAccess } from "../middleware/auth.js";
 import { authRateLimiter } from "../middleware/rateLimiter.js";
 
@@ -11,32 +12,39 @@ adminRouter
     "/create-product",
     authMiddleware,
     verifyAdminAccess,
-    adminController.createProduct
+    adminController.createProduct,
   )
   .patch(
     "/product/:id",
     authMiddleware,
     verifyAdminAccess,
-    adminController.updateProduct
+    adminController.updateProduct,
   )
   .delete(
     "/product/:id",
     authMiddleware,
     verifyAdminAccess,
-    adminController.deleteProduct
+    adminController.deleteProduct,
   )
   .post(
     "/get-upload-image-url",
     authMiddleware,
     verifyAdminAccess,
-    adminController.getUploadImageUrl
+    adminController.getUploadImageUrl,
   )
   .get(
     "/orders",
     authMiddleware,
     verifyAdminAccess,
-    adminController.getAllOrders
+    adminController.getAllOrders,
   )
-  .get("/stats", authMiddleware, verifyAdminAccess, adminController.getStats);
+  .get("/products", authMiddleware, verifyAdminAccess, getAllproducts)
+  .get("/stats", authMiddleware, verifyAdminAccess, adminController.getStats)
+  .post(
+    "/generate-ai-description",
+    authMiddleware,
+    verifyAdminAccess,
+    adminController.generateProductDescription,
+  );
 
 export { adminRouter };

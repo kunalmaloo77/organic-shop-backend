@@ -23,7 +23,7 @@ export const createOrder = async (req, res) => {
               code: "PRODUCT_NOT_FOUND",
               detail: `No product found with id ${item.productId}`,
             },
-          ])
+          ]),
         );
       }
       totalAmount += product.price * item.quantity;
@@ -44,7 +44,7 @@ export const createOrder = async (req, res) => {
       amount: totalAmount * 100,
       items,
       billingDetails,
-      status: paymentMethod === "cash" ? "pending" : "created",
+      status: paymentMethod === "cash" ? "PAYMENT_PENDING" : "CREATED",
       paymentMethod,
     });
     res
@@ -57,7 +57,7 @@ export const createOrder = async (req, res) => {
       .json(
         errorResponse("Error creating order", [
           { code: "CREATE_ORDER_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -82,8 +82,8 @@ export const getOrdersByUser = async (req, res) => {
         successResponse(
           "Orders fetched successfully",
           { orders: ordersWithConvertedAmount },
-          { count: ordersWithConvertedAmount.length }
-        )
+          { count: ordersWithConvertedAmount.length },
+        ),
       );
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -92,7 +92,7 @@ export const getOrdersByUser = async (req, res) => {
       .json(
         errorResponse("Failed to fetch orders", [
           { code: "FETCH_ORDERS_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -103,7 +103,7 @@ export const getOrder = async (req, res) => {
     const userId = req.user.id;
     const orderId = req.params.id;
     const order = await OrderModel.findOne({ _id: orderId, userId }).populate(
-      "items.productId"
+      "items.productId",
     );
     if (!order) {
       return res.status(404).json(
@@ -113,7 +113,7 @@ export const getOrder = async (req, res) => {
             field: "id",
             detail: `No order found with id ${orderId}`,
           },
-        ])
+        ]),
       );
     }
     const orderObj = order.toObject();
@@ -128,7 +128,7 @@ export const getOrder = async (req, res) => {
       .json(
         errorResponse("Failed to fetch order", [
           { code: "FETCH_ORDER_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -143,7 +143,7 @@ export const verifyOrder = async (req, res) => {
     const isValid = validatePaymentVerification(
       { order_id: razorpay_order_id, payment_id: razorpay_payment_id },
       razorpay_signature,
-      secret
+      secret,
     );
 
     if (!isValid) {
@@ -151,7 +151,7 @@ export const verifyOrder = async (req, res) => {
       return res
         .status(400)
         .json(
-          errorResponse("Invalid signature", [{ code: "INVALID_SIGNATURE" }])
+          errorResponse("Invalid signature", [{ code: "INVALID_SIGNATURE" }]),
         );
     }
     return res.status(200).json(successResponse("Client Payment Verified"));
@@ -162,7 +162,7 @@ export const verifyOrder = async (req, res) => {
       .json(
         errorResponse("Internal Server Error", [
           { code: "VERIFY_PAYMENT_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -174,8 +174,8 @@ export const cancelOrder = async (req, res) => {
 
     const updatedOrder = await OrderModel.findOneAndUpdate(
       { _id: orderId, userId },
-      { status: "cancelled" },
-      { new: true }
+      { status: "CANCELLED" },
+      { new: true },
     );
     if (!updatedOrder) {
       return res.status(404).json(
@@ -185,11 +185,11 @@ export const cancelOrder = async (req, res) => {
             field: "id",
             detail: `No order found with id ${orderId}`,
           },
-        ])
+        ]),
       );
     }
     res.json(
-      successResponse("Order cancelled successfully", { order: updatedOrder })
+      successResponse("Order cancelled successfully", { order: updatedOrder }),
     );
   } catch (error) {
     console.error("Error cancelling order:", error);
@@ -198,7 +198,7 @@ export const cancelOrder = async (req, res) => {
       .json(
         errorResponse("Failed to cancel order", [
           { code: "CANCEL_ORDER_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -214,7 +214,7 @@ export const razorpayWebhook = async (req, res) => {
     const is_valid = validateWebhookSignature(
       JSON.stringify(webhook_body),
       webhook_signature,
-      webhook_secret
+      webhook_secret,
     );
 
     if (!is_valid) {
@@ -228,8 +228,11 @@ export const razorpayWebhook = async (req, res) => {
       { razorpayOrderId: payment.entity.order_id },
       {
         razorpayPaymentId: payment.id,
-        status: payment.entity.status === "captured" ? "paid" : "failed",
-      }
+        status:
+          payment.entity.status === "captured"
+            ? "PAYMENT_SUCCESS"
+            : "PAYMENT_FAILED",
+      },
     );
 
     res.status(200);
@@ -239,7 +242,7 @@ export const razorpayWebhook = async (req, res) => {
       .json(
         errorResponse("Failed to verify order", [
           { code: "ORDER_VERIFICATION_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };

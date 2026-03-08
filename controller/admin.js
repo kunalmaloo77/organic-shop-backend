@@ -28,7 +28,7 @@ export const loginAdmin = async (req, res) => {
             field: "email",
             detail: "No admin user found with the provided email",
           },
-        ])
+        ]),
       );
     }
 
@@ -42,7 +42,7 @@ export const loginAdmin = async (req, res) => {
           try {
             const decoded = jwt.verify(
               refreshToken,
-              process.env.JWT_REFRESH_SECRET
+              process.env.JWT_REFRESH_SECRET,
             );
             console.log("Detected refresh token reuse!");
             const hackedUserId = decoded.id;
@@ -59,7 +59,7 @@ export const loginAdmin = async (req, res) => {
             .json(
               errorResponse("Detected refresh token reuse", [
                 { code: "REFRESH_TOKEN_REUSE" },
-              ])
+              ]),
             );
         }
         res.clearCookie("refreshToken", {
@@ -72,7 +72,7 @@ export const loginAdmin = async (req, res) => {
       }
       const newRefreshToken = await generateRefreshToken(
         adminUser._id,
-        "admin"
+        "admin",
       );
       res.cookie("refreshToken", newRefreshToken, {
         httpOnly: true,
@@ -85,7 +85,7 @@ export const loginAdmin = async (req, res) => {
         process.env.JWT_ACCESS_SECRET,
         {
           expiresIn: process.env.JWT_ACCESS_EXPIRY,
-        }
+        },
       );
       const adminWithoutPassword = adminUser.toObject();
       delete adminWithoutPassword.password;
@@ -93,13 +93,15 @@ export const loginAdmin = async (req, res) => {
         successResponse("Admin logged in successfully", {
           accessToken,
           user: adminWithoutPassword,
-        })
+        }),
       );
     } else {
       return res
         .status(401)
         .json(
-          errorResponse("Incorrect password", [{ code: "INVALID_CREDENTIALS" }])
+          errorResponse("Incorrect password", [
+            { code: "INVALID_CREDENTIALS" },
+          ]),
         );
     }
   } catch (error) {
@@ -109,7 +111,7 @@ export const loginAdmin = async (req, res) => {
       .json(
         errorResponse("Failed to login admin", [
           { code: "ADMIN_LOGIN_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -151,7 +153,7 @@ export const getStats = async (req, res) => {
     res.json(
       successResponse("Stats fetched successfully", {
         statsData: { activeUsers, totalOrders, avgOrderValue, sales },
-      })
+      }),
     );
   } catch (error) {
     console.error(error);
@@ -160,7 +162,7 @@ export const getStats = async (req, res) => {
       .json(
         errorResponse("Failed to fetch users", [
           { code: "INTERNAL_ERROR", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -225,7 +227,7 @@ export const createProduct = async (req, res) => {
       .json(
         errorResponse("Failed to create product", [
           { code: "CREATE_PRODUCT_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -242,14 +244,14 @@ export const updateProduct = async (req, res) => {
         .json(
           errorResponse("No update data or id provided", [
             { code: "MISSING_DATA" },
-          ])
+          ]),
         );
     }
 
     const updatedProduct = await productModel.findByIdAndUpdate(
       id,
       updateData,
-      { new: true }
+      { new: true },
     );
     if (!updatedProduct) {
       return res.status(404).json(
@@ -259,13 +261,13 @@ export const updateProduct = async (req, res) => {
             field: "id",
             detail: `No product found with id ${id}`,
           },
-        ])
+        ]),
       );
     }
     res.status(200).json(
       successResponse("Product updated successfully", {
         product: updatedProduct,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error updating product:", error);
@@ -274,7 +276,7 @@ export const updateProduct = async (req, res) => {
       .json(
         errorResponse("Failed to update product", [
           { code: "UPDATE_PRODUCT_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -292,13 +294,13 @@ export const deleteProduct = async (req, res) => {
             field: "id",
             detail: `No product found with id ${id}`,
           },
-        ])
+        ]),
       );
     }
     res.status(200).json(
       successResponse("Product deleted successfully", {
         product: deletedProduct,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error deleting product:", error);
@@ -307,7 +309,7 @@ export const deleteProduct = async (req, res) => {
       .json(
         errorResponse("Failed to delete product", [
           { code: "DELETE_PRODUCT_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -330,22 +332,22 @@ export const getUploadImageUrl = async (req, res) => {
             detail:
               "Content type must be one of image/jpeg, image/png, image/webp, image/jpg",
           },
-        ])
+        ]),
       );
     }
     const smallImageUploadUrl = await getSmallImageUploadUrl(
       filename,
-      contentType
+      contentType,
     );
     const largeImageUploadUrl = await getLargeImageUploadUrl(
       filename,
-      contentType
+      contentType,
     );
     res.status(200).json(
       successResponse("Image URL fetched successfully", {
         smallImageUploadUrl,
         largeImageUploadUrl,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error fetching image URL:", error);
@@ -354,7 +356,87 @@ export const getUploadImageUrl = async (req, res) => {
       .json(
         errorResponse("Failed to fetch image URL", [
           { code: "FETCH_IMAGE_URL_FAILED", detail: error.message },
-        ])
+        ]),
+      );
+  }
+};
+
+// POST: /generate-ai-description
+export const generateProductDescription = async (req, res) => {
+  try {
+    const { imageBase64, imageType, productName } = req.body;
+
+    if (!imageBase64 || !imageType) {
+      return res
+        .status(400)
+        .json(errorResponse("Image is required", [{ code: "IMAGE_REQUIRED" }]));
+    }
+
+    const prompt = `You are a product description generator for an organic shop. Analyze this product image and generate a compelling product description.
+${productName ? `Product name: ${productName}` : ""}
+Respond ONLY with a JSON object in this exact format:
+{
+  "description": "A compelling product description (50-150 words)",
+  "category": "grocery",
+  "name": "A suitable product name based on the image (3-5 words)"
+}
+The category must be either "grocery" (for food items, vegetables, fruits, grains, dairy, snacks, etc.) or "juice" (for beverages, drinks, juices, smoothies). Choose based on what you see in the image.`;
+
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${imageType};base64,${imageBase64}`,
+                  },
+                },
+                {
+                  type: "text",
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || "Groq API error");
+    }
+
+    const data = await response.json();
+    const parsed = JSON.parse(data.choices[0].message.content);
+
+    res.status(200).json(
+      successResponse("Description generated successfully", {
+        description: parsed.description,
+        category: parsed.category,
+        name: parsed.name,
+      }),
+    );
+  } catch (error) {
+    console.error("Error generating description:", error);
+    res
+      .status(500)
+      .json(
+        errorResponse("Failed to generate description", [
+          { code: "GENERATE_DESCRIPTION_FAILED", detail: error.message },
+        ]),
       );
   }
 };
@@ -375,7 +457,7 @@ export const getAllOrders = async (req, res) => {
         status: 1,
         paymentMethod: 1,
         createdAt: 1,
-      }
+      },
     )
       .populate("userId", "name email")
       .sort({ createdAt: -1 })
@@ -391,7 +473,7 @@ export const getAllOrders = async (req, res) => {
         limit,
         totalPages: Math.ceil(totalOrders / limit),
         totalOrders,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -400,7 +482,7 @@ export const getAllOrders = async (req, res) => {
       .json(
         errorResponse("Failed to fetch orders", [
           { code: "FETCH_ORDERS_FAILED", detail: error.message },
-        ])
+        ]),
       );
   }
 };

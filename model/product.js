@@ -13,6 +13,7 @@ const productSchema = new Schema({
   small_image_url: { type: String },
   small_image_url_expires_at: { type: Date },
   sale: { type: Boolean, default: false },
+  effective_price: { type: Number, required: true },
   sale_price: {
     type: Number,
     required: function () {
@@ -20,6 +21,15 @@ const productSchema = new Schema({
     },
   },
   status: { type: String, enum: ["active", "inactive"], default: "active" },
+});
+
+productSchema.pre("validate", function (next) {
+  if (this.sale) {
+    this.effective_price = this.sale_price;
+  } else {
+    this.effective_price = this.price;
+  }
+  next();
 });
 
 export const productModel = mongoose.model("Product", productSchema);

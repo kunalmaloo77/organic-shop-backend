@@ -17,7 +17,7 @@ const resolveAndCacheSignedUrl = async (
   pathField,
   urlField,
   expiryField,
-  expiresInSeconds = 15 * 60
+  expiresInSeconds = 15 * 60,
 ) => {
   const productObj = doc.toObject ? doc.toObject() : doc;
 
@@ -39,7 +39,7 @@ const resolveAndCacheSignedUrl = async (
   try {
     const imageUrl = await getS3ImageUrl(
       productObj[pathField],
-      expiresInSeconds
+      expiresInSeconds,
     );
 
     // Best-effort update of cached URL and expiry
@@ -53,7 +53,7 @@ const resolveAndCacheSignedUrl = async (
     } catch (updateErr) {
       console.error(
         `Failed to update cached URL for product ${productObj._id}:`,
-        updateErr
+        updateErr,
       );
     }
 
@@ -61,7 +61,7 @@ const resolveAndCacheSignedUrl = async (
   } catch (error) {
     console.error(
       `Failed to get s3 url for product ${productObj._id}: `,
-      error
+      error,
     );
     return { ...productObj, [urlField]: null };
   }
@@ -74,24 +74,27 @@ export const getAllproducts = async (req, res) => {
     const min = min_price ? Number(min_price) : 0;
     const max = max_price ? Number(max_price) : Number.MAX_SAFE_INTEGER;
 
+    const query = {
+      name: { $regex: search || "", $options: "i" },
+      effective_price: { $gte: min, $lte: max },
+    };
+
+    if (["grocery", "juice"].includes(category)) {
+      query.title = category;
+    }
+
+    if (!req.user || req.user.role !== "admin") {
+      query.status = "active";
+    }
+
     const products = await productModel
-      .find({
-        name: { $regex: search || "", $options: "i" },
-        price: { $gte: min, $lte: max },
-        title: ["grocery", "juice"].includes(category)
-          ? category
-          : { $exists: true },
-      })
-      .skip(page ? (Number(page) - 1) * 9 : 0)
+      .find(query)
+      .skip(((Number(page) || 1) - 1) * 9)
       .limit(9)
       .lean();
 
-    const total = await productModel.countDocuments({
-      title: { $regex: search || "", $options: "i" },
-      price: { $gte: min, $lte: max },
-    });
-
-    const totalPages = Math.ceil(total / 9);
+    const totalCount = await productModel.countDocuments(query).exec();
+    const totalPages = Math.ceil(totalCount / 9);
 
     const productsWithUrls = await Promise.all(
       products.map(async (p) => {
@@ -100,15 +103,16 @@ export const getAllproducts = async (req, res) => {
           p,
           "small_image_path",
           "small_image_url",
-          "small_image_url_expires_at"
+          "small_image_url_expires_at",
         );
-      })
+      }),
     );
+
     res.json(
       successResponse("Products fetched successfully", {
         products: productsWithUrls,
         totalPages: Math.max(totalPages, 1),
-      })
+      }),
     );
   } catch (error) {
     console.error(error);
@@ -117,7 +121,7 @@ export const getAllproducts = async (req, res) => {
       .json(
         errorResponse("Failed to fetch products", [
           { code: "INTERNAL_ERROR", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -135,7 +139,7 @@ export const getProduct = async (req, res) => {
             field: "id",
             detail: `No product found with id ${id}`,
           },
-        ])
+        ]),
       );
     }
 
@@ -145,7 +149,7 @@ export const getProduct = async (req, res) => {
         prod,
         "image_path",
         "image_url",
-        "image_url_expires_at"
+        "image_url_expires_at",
       );
     });
     res
@@ -158,7 +162,7 @@ export const getProduct = async (req, res) => {
       .json(
         errorResponse("Failed to fetch product", [
           { code: "INTERNAL_ERROR", detail: error.message },
-        ])
+        ]),
       );
   }
 };
@@ -184,15 +188,15 @@ export const getRelatedProducts = async (req, res) => {
           p,
           "small_image_path",
           "small_image_url",
-          "small_image_url_expires_at"
+          "small_image_url_expires_at",
         );
-      })
+      }),
     );
 
     res.status(200).json(
       successResponse("Related products fetched successfully", {
         products: randomProductsWithUrl,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error fetching random products:", error);
@@ -201,7 +205,7 @@ export const getRelatedProducts = async (req, res) => {
       .json(
         errorResponse("Error fetching random products", [
           { code: "INTERNAL_ERROR", detail: error.message },
-        ])
+        ]),
       );
   }
 };
