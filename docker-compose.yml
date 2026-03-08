@@ -22,25 +22,6 @@ services:
       retries: 5
       start_period: 40s
 
-  # Redis Service
-  redis:
-    image: redis:8-alpine
-    container_name: organic-shop-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - organic-shop-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   # Backend API Service
   backend:
     build:
