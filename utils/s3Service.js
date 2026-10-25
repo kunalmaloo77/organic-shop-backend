@@ -17,30 +17,32 @@ const s3Client = new S3Client({
 
 export const getSmallImageUploadUrl = async (filename, ContentType) => {
   const command = new PutObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: `public/products/small_size/${filename}`,
-    Body: file.buffer,
     ContentType: ContentType,
   });
+
   const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
   return url;
 };
 
 export const getLargeImageUploadUrl = async (filename, ContentType) => {
   const command = new PutObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: `public/products/large_size/${filename}`,
     ContentType: ContentType,
   });
+
   const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
   return url;
 };
 
 export const getS3ImageUrl = async (key, expiresIn = 900) => {
   const command = new GetObjectCommand({
-    Bucket: "organic-store-bucket",
+    Bucket: process.env.S3_BUCKET_NAME,
     Key: key,
   });
-  const url = await getSignedUrl(s3Client, command, { expiresIn: expiresIn });
+
+  const url = await getSignedUrl(s3Client, command, { expiresIn });
   return url;
 };

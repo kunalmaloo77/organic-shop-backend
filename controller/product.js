@@ -1,13 +1,23 @@
 import { productModel } from "../model/product.js";
-import { getS3ImageUrl } from "../utils/s3Service.js";
+// import { uploadImageToS3 } from "../utils/s3Service.js";
+import { successResponse, errorResponse } from "../utils/response.js";
 import mongoose from "mongoose";
+import { getS3ImageUrl } from "../utils/s3Service.js";
 
+/**
+ * Resolve (and optionally cache) a signed S3 URL for a product image field.
+ * - doc: a plain object or mongoose document
+ * - pathField: the field name that holds the S3 key/path (e.g. 'image_path' or 'small_image_path')
+ * - urlField: the field name to return/cache for signed url (e.g. 'image_url' or 'small_image_url')
+ * - expiryField: the field name to store expiry timestamp (e.g. 'image_url_expires_at')
+ * Returns a new object based on doc with the urlField set to a signed URL or null.
+ */
 const resolveAndCacheSignedUrl = async (
   doc,
   pathField,
   urlField,
   expiryField,
-  expiresInSeconds = 15 * 60
+  expiresInSeconds = 15 * 60,
 ) => {
   const productObj = doc.toObject ? doc.toObject() : doc;
 
@@ -29,7 +39,7 @@ const resolveAndCacheSignedUrl = async (
   try {
     const imageUrl = await getS3ImageUrl(
       productObj[pathField],
-      expiresInSeconds
+      expiresInSeconds,
     );
 
     // Best-effort update of cached URL and expiry
@@ -43,14 +53,15 @@ const resolveAndCacheSignedUrl = async (
     } catch (updateErr) {
       console.error(
         `Failed to update cached URL for product ${productObj._id}:`,
-        updateErr
+        updateErr,
       );
     }
+
     return { ...productObj, [urlField]: imageUrl };
   } catch (error) {
     console.error(
       `Failed to get s3 url for product ${productObj._id}: `,
-      error
+      error,
     );
     return { ...productObj, [urlField]: null };
   }
@@ -59,7 +70,32 @@ const resolveAndCacheSignedUrl = async (
 //Read all /products
 export const getAllproducts = async (req, res) => {
   try {
-    const products = await productModel.find();
+    const { search, min_price, max_price, page, category } = req.query;
+    const min = min_price ? Number(min_price) : 0;
+    const max = max_price ? Number(max_price) : Number.MAX_SAFE_INTEGER;
+
+    const query = {
+      name: { $regex: search || "", $options: "i" },
+      effective_price: { $gte: min, $lte: max },
+    };
+
+    if (["grocery", "juice"].includes(category)) {
+      query.title = category;
+    }
+
+    if (!req.user || req.user.role !== "admin") {
+      query.status = "active";
+    }
+
+    const products = await productModel
+      .find(query)
+      .skip(((Number(page) || 1) - 1) * 9)
+      .limit(9)
+      .lean();
+
+    const totalCount = await productModel.countDocuments(query).exec();
+    const totalPages = Math.ceil(totalCount / 9);
+
     const productsWithUrls = await Promise.all(
       products.map(async (p) => {
         // Use shared helper to resolve and cache signed URL for small image
@@ -67,56 +103,109 @@ export const getAllproducts = async (req, res) => {
           p,
           "small_image_path",
           "small_image_url",
-          "small_image_url_expires_at"
+          "small_image_url_expires_at",
         );
-      })
+      }),
     );
-    res.json(productsWithUrls);
+
+    res.json(
+      successResponse("Products fetched successfully", {
+        products: productsWithUrls,
+        totalPages: Math.max(totalPages, 1),
+      }),
+    );
   } catch (error) {
     console.error(error);
+    res
+      .status(500)
+      .json(
+        errorResponse("Failed to fetch products", [
+          { code: "INTERNAL_ERROR", detail: error.message },
+        ]),
+      );
   }
 };
 
-//Read single GET /products/:id
-export const getproduct = async (req, res) => {
+//GET /products/:id
+export const getProduct = async (req, res) => {
   try {
     const id = req.params.id;
     const product = await productModel.findById(id);
     if (!product) {
-      return res.status(404).json({ error: "Product not found" });
+      return res.status(404).json(
+        errorResponse("Product not found", [
+          {
+            code: "PRODUCT_NOT_FOUND",
+            field: "id",
+            detail: `No product found with id ${id}`,
+          },
+        ]),
+      );
     }
-    const productWithUrls = await resolveAndCacheSignedUrl(
-      product,
-      "image_path",
-      "image_url",
-      "image_url_expires_at",
-      5 * 60 // 5 minutes expiry for main image
-    );
-    res.status(200).json(productWithUrls);
+
+    const productWithUrl = await Promise.resolve(product).then(async (prod) => {
+      // Use shared helper to resolve and cache signed URL for main image
+      return await resolveAndCacheSignedUrl(
+        prod,
+        "image_path",
+        "image_url",
+        "image_url_expires_at",
+      );
+    });
+    res
+      .status(200)
+      .json(successResponse("Product fetched successfully", productWithUrl));
   } catch (error) {
     console.error(error);
+    res
+      .status(500)
+      .json(
+        errorResponse("Failed to fetch product", [
+          { code: "INTERNAL_ERROR", detail: error.message },
+        ]),
+      );
   }
 };
 
 //Get related products GET /products/get-related-products
 export const getRelatedProducts = async (req, res) => {
-  const { title, key } = req.query;
+  const { title, id } = req.query;
 
   try {
     const randomProducts = await productModel.aggregate([
       {
         $match: {
           title: title,
-          _id: { $ne: new mongoose.Types.ObjectId(String(key)) },
+          _id: { $ne: new mongoose.Types.ObjectId(String(id)) },
         },
       },
       { $sample: { size: 3 } },
     ]);
-    res.status(200).json({ success: true, products: randomProducts });
+
+    const randomProductsWithUrl = await Promise.all(
+      randomProducts.map(async (p) => {
+        return await resolveAndCacheSignedUrl(
+          p,
+          "small_image_path",
+          "small_image_url",
+          "small_image_url_expires_at",
+        );
+      }),
+    );
+
+    res.status(200).json(
+      successResponse("Related products fetched successfully", {
+        products: randomProductsWithUrl,
+      }),
+    );
   } catch (error) {
     console.error("Error fetching random products:", error);
     res
       .status(500)
-      .json({ success: false, message: "Error fetching random products" });
+      .json(
+        errorResponse("Error fetching random products", [
+          { code: "INTERNAL_ERROR", detail: error.message },
+        ]),
+      );
   }
 };

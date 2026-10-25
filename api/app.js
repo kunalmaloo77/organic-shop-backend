@@ -1,23 +1,16 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import { userRouter } from "../routes/user.js";
+import { adminRouter } from "../routes/admin.js";
 import { authRouter } from "../routes/auth.js";
 import { orderRouter } from "../routes/order.js";
 import "dotenv/config";
-import passport from "passport";
-import session from "express-session";
-import initializePassport from "../passport-config.js";
 import morgan from "morgan";
 import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import Razorpay from "razorpay";
 import { productRouter } from "../routes/product.js";
-
-const baseUrl =
-  process.env.NODE_ENV === "production"
-    ? process.env.FRONT_END_URL_PRODUCTION
-    : process.env.FRONT_END_URL_DEVELOPMENT;
+import client from "../redis_connect.js";
 
 export const instance = new Razorpay({
   key_id: process.env.RAZOR_PAY_API_KEY,
@@ -25,16 +18,15 @@ export const instance = new Razorpay({
 });
 
 main().catch((error) => {
-  console.error("promise error ->", error);
+  console.error("Promise error ->", error);
 });
 
 async function main() {
   try {
-    await mongoose.connect(
-      process.env.NODE_ENV === 'development' ? process.env.MONGO_URI_DEVELOPMENT : process.env.MONGO_URI_PRODUCTION
-    );
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("Database connected successfully");
   } catch (error) {
-    console.error("async error ->", error);
+    console.error("Database connection error ->", error);
   }
 }
 
@@ -47,7 +39,7 @@ server.use(bodyParser.urlencoded({ extended: true }));
 server.use(morgan("dev"));
 
 const corsOptions = {
-  origin: baseUrl,
+  origin: process.env.FRONTEND_ENDPOINT,
   credentials: true,
 };
 
@@ -59,24 +51,13 @@ server.options("*", cors(corsOptions));
 server.set("trust proxy", 1);
 
 server.use(cookieParser());
-server.use(
-  session({
-    secret: process.env.SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      secure: process.env.NODE_ENV === "production",
-    },
-  })
-);
 
-initializePassport();
+// Health check endpoint for Docker
+server.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-server.use(passport.authenticate("session"));
-
-server.use("/users", userRouter);
+server.use("/admin", adminRouter);
 
 server.use("/auth", authRouter);
 
@@ -84,6 +65,28 @@ server.use("/orders", orderRouter);
 
 server.use("/products", productRouter);
 
-server.listen(8080, () => {
-  console.log("server started on port 8080");
+const httpServer = server.listen(process.env.PORT, () => {
+  console.log(`server started on port ${process.env.PORT}`);
 });
+
+async function shutdown(signal) {
+  console.log(`Received ${signal}, closing server...`);
+  try {
+    if (httpServer && typeof httpServer.close === "function") {
+      await new Promise((resolve, reject) => {
+        httpServer.close((err) => (err ? reject(err) : resolve()));
+      });
+      console.log("HTTP server closed");
+    }
+    await client.quit().catch((e) => console.error("Redis quit error:", e));
+    await mongoose.disconnect();
+    console.log("Disconnected from Redis and MongoDB, exiting.");
+    process.exit(0);
+  } catch (err) {
+    console.error("Shutdown error:", err);
+    process.exit(1);
+  }
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));

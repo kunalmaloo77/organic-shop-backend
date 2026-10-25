@@ -1,0 +1,41 @@
+# Development Docker Compose Override
+# This file extends docker-compose.yml for development
+
+services:
+  backend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Enable hot-reload in development
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    command: npm run start
+    ports:
+      - "9229:9229" # Node.js debugger port
+
+  mongodb:
+    command: mongod --noauth
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+
+  # Redis Service
+  redis:
+    image: redis:8-alpine
+    container_name: organic-shop-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - organic-shop-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

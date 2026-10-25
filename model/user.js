@@ -1,25 +1,33 @@
 import mongoose from "mongoose";
-import { hashedPassword } from "../utils/hashedPassword.js";
+import { hashedPassword } from "../utils/util.js";
 const { Schema } = mongoose;
 
 const userSchema = new Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },    password: { type: String, required: true },
-    tokens: [
-      {
-        token: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: false },
+    provider: {
+      type: String,
+      required: true,
+      enum: ["local", "google"],
+      default: "local",
+    },
+    role: {
+      type: String,
+      required: true,
+      enum: ["user", "admin"],
+      default: "user",
+    },
   },
   { timestamps: true }
 );
 
 userSchema.pre("save", async function (next) {
   const user = this;
+  if (!user.password) {
+    return next();
+  }
 
   if (this.isModified("password") || this.isNew) {
     try {
@@ -28,9 +36,19 @@ userSchema.pre("save", async function (next) {
     } catch (error) {
       return next(error);
     }
-  } else {
-    return next();
   }
+  return next();
+});
+
+userSchema.pre("findOneAndUpdate", async function (next) {
+  const update = this.getUpdate();
+
+  if (update.password) {
+    const hashed = await hashedPassword(update.password);
+    this.setUpdate({ ...update, password: hashed });
+  }
+
+  next();
 });
 
 export const userModel = mongoose.model("User", userSchema);
