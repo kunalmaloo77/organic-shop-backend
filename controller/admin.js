@@ -198,11 +198,25 @@ export const createProduct = async (req, res) => {
       sale_price,
       filename,
       status,
+      stock,
     } = req.body;
+
+    if (!Number.isInteger(Number(stock)) || Number(stock) < 0) {
+      return res.status(400).json(
+        errorResponse("Invalid stock", [
+          {
+            code: "INVALID_STOCK",
+            field: "stock",
+            detail: "Stock must be an integer greater than or equal to 0",
+          },
+        ]),
+      );
+    }
 
     const product = {
       name,
       status,
+      stock: Number(stock),
       title,
       price,
       description,
@@ -246,6 +260,22 @@ export const updateProduct = async (req, res) => {
             { code: "MISSING_DATA" },
           ]),
         );
+    }
+
+    if (updateData.stock !== undefined) {
+      const stock = Number(updateData.stock);
+      if (updateData.stock === "" || !Number.isInteger(stock) || stock < 0) {
+        return res.status(400).json(
+          errorResponse("Invalid stock", [
+            {
+              code: "INVALID_STOCK",
+              field: "stock",
+              detail: "Stock must be an integer greater than or equal to 0",
+            },
+          ]),
+        );
+      }
+      updateData.stock = stock;
     }
 
     const updatedProduct = await productModel.findByIdAndUpdate(

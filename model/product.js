@@ -22,6 +22,7 @@ const productSchema = new Schema({
     },
   },
   status: { type: String, enum: ["active", "inactive"], default: "active" },
+  stock: { type: Number, required: true, min: 0, default: 0 },
 });
 
 productSchema.pre("validate", function (next) {

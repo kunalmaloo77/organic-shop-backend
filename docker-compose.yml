@@ -1,15 +1,13 @@
 services:
   # MongoDB Service
   mongodb:
-    image: mongo:8.0
+    image: mongo:7
     container_name: organic-shop-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-admin123}
       MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-organic_shop}
-    ports:
-      - "27017:27017"
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
@@ -17,16 +15,36 @@ services:
       - organic-shop-network
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  # Redis Service
+  redis:
+    image: redis:8-alpine
+    container_name: organic-shop-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - organic-shop-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD:-redis123} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
 
   # Backend API Service
   backend:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     container_name: organic-shop-backend
     restart: unless-stopped
     ports:
@@ -37,8 +55,8 @@ services:
       BASE_URL: ${BASE_URL}
       FRONTEND_ENDPOINT: ${FRONTEND_ENDPOINT}
       MONGO_URI: ${MONGO_URI}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}

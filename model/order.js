@@ -26,6 +26,8 @@ const orderSchema = new mongoose.Schema({
         required: true,
       },
       quantity: { type: Number, required: true },
+      name: { type: String },
+      price: { type: Number },
     },
   ],
   createdAt: { type: Date, default: Date.now },

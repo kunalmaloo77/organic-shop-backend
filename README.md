@@ -54,7 +54,7 @@ To get the project up and running locally or in production, please follow the in
 
 ### Quick Summary:
 1.  Configure your environment variables in `.env`.
-2.  Run `docker-compose up` to start the backend, MongoDB, and Redis.
+2.  Run `docker compose up` to start the backend, MongoDB, and Redis.
 3.  Access the API at `http://localhost:8080`.
 
 ## 📜 API Documentation (Highlights)
