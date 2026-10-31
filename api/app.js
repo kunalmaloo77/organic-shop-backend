@@ -32,6 +32,10 @@ async function main() {
 
 const server = express();
 
+// Razorpay signs the raw request body, so the webhook must see the untouched
+// bytes. This has to be registered before the JSON body parser below.
+server.use("/orders/webhook", express.raw({ type: "application/json" }));
+
 server.use(bodyParser.json());
 
 server.use(bodyParser.urlencoded({ extended: true }));

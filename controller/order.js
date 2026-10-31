@@ -7,60 +7,118 @@ import { OrderModel } from "../model/order.js";
 import { productModel } from "../model/product.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 
-//create order
-export const createOrder = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { currency, items, paymentMethod, billingDetails } = req.body;
-
-    let totalAmount = 0;
-    for (const item of items) {
-      const product = await productModel.findById(item.productId);
-      if (!product) {
-        return res.status(404).json(
-          errorResponse("Product not found", [
-            {
-              code: "PRODUCT_NOT_FOUND",
-              detail: `No product found with id ${item.productId}`,
-            },
-          ]),
-        );
-      }
-      totalAmount += product.price * item.quantity;
-    }
-
-    let razorpayOrderId;
-    if (paymentMethod === "online") {
-      const options = {
-        amount: totalAmount * 100,
-        currency: currency,
-      };
-      const razorpayOrder = await instance.orders.create(options);
-      razorpayOrderId = razorpayOrder.id;
-    }
-    const dbOrder = await OrderModel.create({
-      userId,
-      razorpayOrderId,
-      amount: totalAmount * 100,
-      items,
-      billingDetails,
-      status: paymentMethod === "cash" ? "PAYMENT_PENDING" : "CREATED",
-      paymentMethod,
-    });
-    res
-      .status(201)
-      .json(successResponse("Order created successfully", { order: dbOrder }));
-  } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json(
-        errorResponse("Error creating order", [
-          { code: "CREATE_ORDER_FAILED", detail: error.message },
-        ]),
-      );
+// give reserved stock back to the products
+const restoreStock = async (items) => {
+  for (const item of items) {
+    await productModel.updateOne(
+      { _id: item.productId },
+      { $inc: { stock: item.quantity } },
+    );
   }
 };
+
+  //create order
+  export const createOrder = async (req, res) => {
+    // every item added here has its stock already reserved, released again if the order fails
+    const orderItems = [];
+    try {
+      const userId = req.user.id;
+      const { currency, items, paymentMethod, billingDetails } = req.body;
+
+      let totalAmount = 0;
+      for (const rawItem of items) {
+        // carts edited in the UI may hold the quantity as a numeric string
+        const item = { ...rawItem, quantity: Number(rawItem.quantity) };
+        if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+          await restoreStock(orderItems);
+          return res.status(400).json(
+            errorResponse("Invalid quantity", [
+              {
+                code: "INVALID_QUANTITY",
+                detail: `Quantity for product ${item.productId} must be a positive integer`,
+              },
+            ]),
+          );
+        }
+        // reserve stock atomically so concurrent orders cannot oversell
+        const product = await productModel.findOneAndUpdate(
+          {
+            _id: item.productId,
+            status: "active",
+            stock: { $gte: item.quantity },
+          },
+          { $inc: { stock: -item.quantity } },
+          { new: true },
+        );
+        if (!product) {
+          await restoreStock(orderItems);
+          const existing = await productModel.findById(item.productId);
+          if (!existing) {
+            return res.status(404).json(
+              errorResponse("Product not found", [
+                {
+                  code: "PRODUCT_NOT_FOUND",
+                  detail: `No product found with id ${item.productId}`,
+                },
+              ]),
+            );
+          }
+          const available = existing.status === "active" ? existing.stock : 0;
+          return res.status(409).json(
+            errorResponse(`${existing.name} is out of stock`, [
+              {
+                code: "OUT_OF_STOCK",
+                detail: `Only ${available} of ${existing.name} available`,
+                productId: existing._id,
+                available,
+              },
+            ]),
+          );
+        }
+        totalAmount += product.price * item.quantity;
+        orderItems.push({
+          productId: product._id,
+          quantity: item.quantity,
+          name: product.name,
+          price: product.price,
+        });
+      }
+
+      let razorpayOrderId;
+      if (paymentMethod === "online") {
+        const options = {
+          amount: totalAmount * 100,
+          currency: currency,
+        };
+        const razorpayOrder = await instance.orders.create(options);
+        razorpayOrderId = razorpayOrder.id;
+      }
+      const dbOrder = await OrderModel.create({
+        userId,
+        razorpayOrderId,
+        amount: totalAmount * 100,
+        items: orderItems,
+        billingDetails,
+        status: paymentMethod === "cash" ? "PAYMENT_PENDING" : "CREATED",
+        paymentMethod,
+      });
+      res
+        .status(201)
+        .json(successResponse("Order created successfully", { order: dbOrder }));
+    } catch (error) {
+      console.error(error);
+      await restoreStock(orderItems).catch((e) =>
+        console.error("Failed to restore stock:", e),
+      );
+      res
+        .status(500)
+        .json(
+          errorResponse("Error creating order", [
+            { code: "CREATE_ORDER_FAILED", detail: error.message },
+          ]),
+        );
+    }
+  };
 
 // Fetch all orders of a specific user
 export const getOrdersByUser = async (req, res) => {
@@ -172,22 +230,43 @@ export const cancelOrder = async (req, res) => {
     const userId = req.user.id;
     const orderId = req.body.id;
 
-    const updatedOrder = await OrderModel.findOneAndUpdate(
-      { _id: orderId, userId },
+    // only orders that have not been delivered, cancelled or refunded can be
+    // cancelled; the previous document tells whether stock is still reserved
+    const previousOrder = await OrderModel.findOneAndUpdate(
+      {
+        _id: orderId,
+        userId,
+        status: {
+          $in: ["CREATED", "PAYMENT_PENDING", "PAYMENT_SUCCESS", "PAYMENT_FAILED"],
+        },
+      },
       { status: "CANCELLED" },
-      { new: true },
     );
-    if (!updatedOrder) {
-      return res.status(404).json(
-        errorResponse("Order not found", [
-          {
-            code: "ORDER_NOT_FOUND",
-            field: "id",
-            detail: `No order found with id ${orderId}`,
-          },
+    if (!previousOrder) {
+      const exists = await OrderModel.exists({ _id: orderId, userId });
+      if (!exists) {
+        return res.status(404).json(
+          errorResponse("Order not found", [
+            {
+              code: "ORDER_NOT_FOUND",
+              field: "id",
+              detail: `No order found with id ${orderId}`,
+            },
+          ]),
+        );
+      }
+      return res.status(409).json(
+        errorResponse("Order cannot be cancelled", [
+          { code: "ORDER_NOT_CANCELLABLE", field: "id" },
         ]),
       );
     }
+    // PAYMENT_FAILED orders already had their stock restored
+    if (previousOrder.status !== "PAYMENT_FAILED") {
+      await restoreStock(previousOrder.items);
+    }
+    const updatedOrder = previousOrder;
+    updatedOrder.status = "CANCELLED";
     res.json(
       successResponse("Order cancelled successfully", { order: updatedOrder }),
     );
@@ -209,33 +288,52 @@ export const razorpayWebhook = async (req, res) => {
   try {
     const webhook_secret = process.env.RAZOR_PAY_WEBHOOK_SECRET;
     const webhook_signature = req.headers["x-razorpay-signature"];
-    const webhook_body = req.body;
-
-    const is_valid = validateWebhookSignature(
-      JSON.stringify(webhook_body),
-      webhook_signature,
-      webhook_secret,
-    );
+    // express.raw (see api/app.js) leaves the exact bytes Razorpay signed
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
+    console.log(rawBody, "rawBody");
+    console.log(req.body, "req.body");
+    
+    const is_valid =
+      Boolean(webhook_signature) &&
+      validateWebhookSignature(rawBody, webhook_signature, webhook_secret);
 
     if (!is_valid) {
       return res.status(400).json({ error: "Invalid webhook signature" });
     }
 
-    const { payload } = webhook_body;
-    const { payment } = payload;
+    const payment = JSON.parse(rawBody).payload?.payment?.entity;
+    // events without a payment (e.g. refunds) are acknowledged and ignored
+    if (!payment) {
+      return res.status(200).json({ received: true });
+    }
 
-    await OrderModel.findOneAndUpdate(
-      { razorpayOrderId: payment.entity.order_id },
-      {
-        razorpayPaymentId: payment.id,
-        status:
-          payment.entity.status === "captured"
-            ? "PAYMENT_SUCCESS"
-            : "PAYMENT_FAILED",
-      },
-    );
+    const paymentSucceeded = payment.status === "captured";
+    if (paymentSucceeded) {
+      // a late success can still rescue an order whose earlier attempt failed
+      await OrderModel.findOneAndUpdate(
+        {
+          razorpayOrderId: payment.order_id,
+          status: { $in: ["CREATED", "PAYMENT_PENDING", "PAYMENT_FAILED"] },
+        },
+        { razorpayPaymentId: payment.id, status: "PAYMENT_SUCCESS" },
+      );
+    } else {
+      // only fail orders still waiting on payment, so a failed retry can never
+      // overwrite a successful payment, and stock is released exactly once
+      const failedOrder = await OrderModel.findOneAndUpdate(
+        {
+          razorpayOrderId: payment.order_id,
+          status: { $in: ["CREATED", "PAYMENT_PENDING"] },
+        },
+        { razorpayPaymentId: payment.id, status: "PAYMENT_FAILED" },
+      );
+      if (failedOrder) {
+        await restoreStock(failedOrder.items);
+      }
+    }
 
-    res.status(200);
+    // always answer 200 so Razorpay stops retrying
+    res.status(200).json({ received: true });
   } catch (error) {
     res
       .status(500)

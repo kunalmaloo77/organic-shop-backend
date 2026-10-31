@@ -11,31 +11,25 @@ services:
       # Enable hot-reload in development
       - .:/usr/src/app
       - /usr/src/app/node_modules
-    command: npm run start
+    command: npm run dev
     ports:
       - "9229:9229" # Node.js debugger port
 
   mongodb:
-    command: mongod --noauth
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ""
-      MONGO_INITDB_ROOT_PASSWORD: ""
-
-  # Redis Service
-  redis:
-    image: redis:8-alpine
-    container_name: organic-shop-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: ["mongod", "--noauth"]
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - organic-shop-network
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME:
+      MONGO_INITDB_ROOT_PASSWORD:
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
+      # Override the healthcheck so it stays simple (no credentials)
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 40s
+
+  redis:
+    ports:
+      - "6379:6379"
