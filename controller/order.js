@@ -290,8 +290,6 @@ export const razorpayWebhook = async (req, res) => {
     const webhook_signature = req.headers["x-razorpay-signature"];
     // express.raw (see api/app.js) leaves the exact bytes Razorpay signed
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
-    console.log(rawBody, "rawBody");
-    console.log(req.body, "req.body");
     
     const is_valid =
       Boolean(webhook_signature) &&
